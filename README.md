@@ -1,6 +1,6 @@
 # REA AI — Reverse Engineer Anything com agentes de IA
 
-> **Projeto em desenvolvimento.** O REA AI está sendo preparado a partir do sistema completo do [REA original](https://github.com/morluto/rea). As funções e integrações descritas abaixo representam a direção do projeto e ainda precisam ser confirmadas na base importada e validadas.
+> **Iniciado em 28/10/2026, o REA AI é um projeto novo e experimental, ainda em desenvolvimento.** Está sendo preparado a partir do sistema completo do [REA original](https://github.com/morluto/rea). As funções e integrações descritas abaixo representam a direção do projeto e ainda precisam ser confirmadas na base importada e validadas.
 
 O **REA AI** pretende conectar agentes de inteligência artificial a ferramentas de engenharia reversa. A ideia é permitir que você investigue um programa fazendo perguntas em linguagem natural, enquanto o agente usa os fluxos do REA, reúne evidências e explica o que foi observado.
 
