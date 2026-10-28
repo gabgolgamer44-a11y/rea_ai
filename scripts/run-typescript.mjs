@@ -66,6 +66,11 @@ const main = async () => {
       args.includes(option) ? [] : [option, value],
     );
     process.argv.splice(2, 0, ...defaults);
+  } else if (compiler.name === "typescript") {
+    const args = process.argv.slice(2);
+    if (!args.includes("--checkers")) {
+      process.argv.splice(2, 0, "--checkers", String(Math.min(2, availableParallelism())));
+    }
   }
   // Delegate execution, diagnostics, status and signals to the package's launcher.
   // An unavailable binary on a supported host must fail rather than hide drift.

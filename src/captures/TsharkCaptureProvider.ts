@@ -35,7 +35,12 @@ import { readStableArtifact } from "../artifacts/readStableArtifact.js";
 import {
   assertArtifactCommandPath,
   selectArtifactCommandPath,
+  type ArtifactCommandPath,
 } from "../process/ArtifactCommandPath.js";
+import {
+  isWindowsBatchFile,
+  windowsBatchCommand,
+} from "../process/WindowsBatchCommand.js";
 import {
   AnalysisError,
   type AnalysisCapturedOutput,
@@ -78,9 +83,26 @@ export const TSHARK_PROVIDER_IDENTITY = {
 } as const;
 type Launcher = NonNullable<Parameters<typeof runOwnedCommand>[2]>["launcher"];
 
-/** Packet inspection runs only on Linux; discovery and execution share this check. */
+/**
+ * Offline file inspection (PCAP/PCAPNG) runs in user space without requiring
+ * Npcap or WinPcap network packet capture drivers. Supported on Linux and Windows.
+ */
+export const tsharkOfflineCaptureSupported = (
+  platform: NodeJS.Platform,
+): boolean => platform === "linux" || platform === "win32";
+
+/**
+ * Live interface capture requires Npcap/WinPcap drivers on Windows and root/capabilities on Linux.
+ * REA currently performs offline analysis only; live capture is not admitted.
+ */
+export const tsharkLiveCaptureSupported = (
+  platform: NodeJS.Platform,
+  hasNpcap = false,
+): boolean => (platform === "win32" ? hasNpcap : platform === "linux");
+
+/** Packet inspection runs on Linux and Windows; discovery and execution share this check. */
 export const tsharkHostSupported = (platform: NodeJS.Platform): boolean =>
-  platform === "linux";
+  tsharkOfflineCaptureSupported(platform);
 
 /** Inspect selected capture files only, retaining cleanup ownership across failures. */
 export class TsharkCaptureProvider implements PacketCapturePort {
@@ -151,7 +173,7 @@ export class TsharkCaptureProvider implements PacketCapturePort {
       await this.#resources.release();
       if (!tsharkHostSupported(this.platform))
         throw new Error(
-          "Packet inspection requires Linux with util-linux prlimit and TShark 4.x (on PATH or through absolute REA_TSHARK_COMMAND) so expanded captures are processed under an enforced address-space limit.",
+          "Packet inspection requires Linux with util-linux prlimit or Windows, and TShark 4.x (on PATH or through absolute REA_TSHARK_COMMAND) so expanded captures are processed under an enforced address-space limit.",
         );
       const selection = selectWiresharkTool(this.environment, "tshark");
       const configured = locateWiresharkTool(selection, this.environment);
@@ -171,26 +193,43 @@ export class TsharkCaptureProvider implements PacketCapturePort {
         options?.signal,
       );
       const tool = wiresharkExecutableIdentity(toolSnapshot);
-      const configuredLimiter =
-        this.environment.REA_TSHARK_PRLIMIT_COMMAND ?? "/usr/bin/prlimit";
-      if (!isAbsolute(configuredLimiter))
-        throw new Error("REA_TSHARK_PRLIMIT_COMMAND must be absolute.");
-      const selectedLimiter = await selectArtifactCommandPath(
-        configuredLimiter,
-        options?.signal,
-      );
-      const limiter = selectedLimiter.resolvedPath;
-      await access(limiter, constants.X_OK);
-      const limiterIdentity = await this.#resources.read(
-        limiter,
-        64 * 1024 * 1024,
-        options?.signal,
-      );
-      effectiveLimits = await this.#resources.readLimits(limits);
-      const limitArguments = prlimitArgumentVector(
-        effectiveLimits,
-        selectedCommand.invocationPath,
-      );
+      const isWindows = this.platform === "win32";
+      let configuredLimiter: string | undefined;
+      let selectedLimiter: ArtifactCommandPath | undefined;
+      let limiter: string | undefined;
+      let limiterIdentity: { sha256: string } | undefined;
+      let limitArguments: string[] = [];
+      if (!isWindows) {
+        configuredLimiter =
+          this.environment.REA_TSHARK_PRLIMIT_COMMAND ?? "/usr/bin/prlimit";
+        if (!isAbsolute(configuredLimiter))
+          throw new Error("REA_TSHARK_PRLIMIT_COMMAND must be absolute.");
+        selectedLimiter = await selectArtifactCommandPath(
+          configuredLimiter,
+          options?.signal,
+        );
+        limiter = selectedLimiter.resolvedPath;
+        await access(limiter, constants.X_OK);
+        limiterIdentity = await this.#resources.read(
+          limiter,
+          64 * 1024 * 1024,
+          options?.signal,
+        );
+        effectiveLimits = await this.#resources.readLimits(limits);
+        limitArguments = prlimitArgumentVector(
+          effectiveLimits,
+          selectedCommand.invocationPath,
+        );
+      } else {
+        effectiveLimits =
+          this.readLimits === readLinuxResourceLimits
+            ? {
+                address_space_bytes: LIMITS.address_space_bytes,
+                file_bytes: LIMITS.file_bytes,
+                cpu_seconds: LIMITS.cpu_seconds,
+              }
+            : await this.#resources.readLimits(limits);
+      }
       phase = "workspace";
       root = await this.createRuntime();
       this.#resources.retain(root, undefined);
@@ -202,13 +241,27 @@ export class TsharkCaptureProvider implements PacketCapturePort {
         await assertArtifactCommandPath(selectedCommand, operation, {
           signal: options?.signal,
         });
-        await assertArtifactCommandPath(selectedLimiter, operation, {
-          signal: options?.signal,
-        });
+        if (selectedLimiter !== undefined) {
+          await assertArtifactCommandPath(selectedLimiter, operation, {
+            signal: options?.signal,
+          });
+        }
+        const batch = isWindows && isWindowsBatchFile(command);
+        const invocation = isWindows
+          ? batch
+            ? windowsBatchCommand({
+                environment: this.environment,
+                batchPath: command,
+                arguments: args,
+              })
+            : { command: selectedCommand.invocationPath, arguments: args }
+          : {
+              command: selectedLimiter!.invocationPath,
+              arguments: [...limitArguments, ...args],
+            };
         const output = await runOwnedCommand(
           {
-            command: selectedLimiter.invocationPath,
-            arguments: [...limitArguments, ...args],
+            ...invocation,
             ...(root === undefined ? {} : { cwd: root.path }),
             expectedCommand: null,
             runId: `rea-tshark-${randomUUID()}`,
@@ -216,6 +269,10 @@ export class TsharkCaptureProvider implements PacketCapturePort {
               ...this.environment,
               WIRESHARK_CONFIG_DIR: configurationPath,
             },
+            ...(batch ? { windowsVerbatimArguments: true } : {}),
+            ...(isWindows
+              ? { memoryLimitBytes: limits.address_space_bytes }
+              : {}),
           },
           {
             timeoutMs: limits.command_timeout_ms,
@@ -233,15 +290,35 @@ export class TsharkCaptureProvider implements PacketCapturePort {
         await assertArtifactCommandPath(selectedCommand, operation, {
           capturedOutput,
         });
-        await assertArtifactCommandPath(selectedLimiter, operation, {
-          capturedOutput,
-        });
-        const current = await this.#resources.readCommandAfterRun(
-          command,
-          { path: limiter, sha256: limiterIdentity.sha256 },
-          capturedOutput,
-          operation,
-        );
+        if (selectedLimiter !== undefined) {
+          await assertArtifactCommandPath(selectedLimiter, operation, {
+            capturedOutput,
+          });
+        }
+        let current: { sha256: string; bytes: Uint8Array };
+        if (
+          selectedLimiter !== undefined &&
+          limiter !== undefined &&
+          limiterIdentity !== undefined
+        ) {
+          current = await this.#resources.readCommandAfterRun(
+            command,
+            { path: limiter, sha256: limiterIdentity.sha256 },
+            capturedOutput,
+            operation,
+          );
+        } else {
+          try {
+            current = await this.#resources.read(command, 64 * 1024 * 1024);
+          } catch (cause: unknown) {
+            throw this.#resources.integrityFailure(
+              cause,
+              command,
+              capturedOutput,
+              operation,
+            );
+          }
+        }
         assertWiresharkExecutableIdentity(
           operation,
           command,
@@ -281,12 +358,15 @@ export class TsharkCaptureProvider implements PacketCapturePort {
           version_diagnostics: version.stderr.text,
           arguments: [...args],
         },
-        resource_limiter: {
-          configured_path: configuredLimiter,
-          path: limiter,
-          sha256: limiterIdentity.sha256,
-          arguments: limitArguments,
-        },
+        resource_limiter:
+          limiter !== undefined && limiterIdentity !== undefined
+            ? {
+                configured_path: configuredLimiter!,
+                path: limiter,
+                sha256: limiterIdentity.sha256,
+                arguments: limitArguments,
+              }
+            : null,
         limits: { ...limits, ...effectiveLimits },
         hardware_acquisition: "not-performed" as const,
       });
@@ -405,7 +485,9 @@ export class TsharkCaptureProvider implements PacketCapturePort {
               "Packet limits count input packets before display filtering. Filtered results do not establish whole-capture or device traffic absence. Two-pass reassembly cannot recover bytes missing from the recording or beyond the read limit.",
               "Repeated field values remain ordered string arrays; raw packet bytes are included only when explicitly selected as a supported field. Export index/score metadata are omitted. All stderr, including warnings on exit zero, is retained.",
               "A private empty personal configuration is used. Installed libraries, global configuration and dissector plugins are trusted and not fully fingerprinted. File-only analysis and disabled name resolution do not constitute an OS sandbox.",
-              "Linux prlimit enforces soft and hard ceilings before execution, preserving stricter inherited limits: at most 1 GiB address space per process, 64 MiB per file, 30 CPU seconds and no core dumps. Effective limits are reported. Resident input is capped at 32 MiB, each command at 30 wall-clock seconds and combined output at 4 MiB. Output overflow fails. These are per-process/per-file limits, not aggregate memory or filesystem quotas; caller-supplied tools and the limiter are trusted. REA retains the tighter inherited limit. This release has no runtime override.",
+              isWindows
+                ? "Windows offline capture analysis runs in user space without requiring Npcap or WinPcap network packet capture drivers. Process memory is bounded by Job Object committed memory (1 GiB). Resident input is capped at 32 MiB, each command at 30 wall-clock seconds and combined output at 4 MiB. Output overflow fails."
+                : "Linux prlimit enforces soft and hard ceilings before execution, preserving stricter inherited limits: at most 1 GiB address space per process, 64 MiB per file, 30 CPU seconds and no core dumps. Effective limits are reported. Resident input is capped at 32 MiB, each command at 30 wall-clock seconds and combined output at 4 MiB. Output overflow fails. These are per-process/per-file limits, not aggregate memory or filesystem quotas; caller-supplied tools and the limiter are trusted. REA retains the tighter inherited limit. This release has no runtime override.",
             ],
           }),
         );
@@ -532,7 +614,7 @@ export class TsharkCaptureProvider implements PacketCapturePort {
           ...(observedOutput === undefined
             ? {}
             : { capturedOutput: observedOutput }),
-          userMessage: `${reason} On Linux, supply TShark 4.x on PATH or through absolute REA_TSHARK_COMMAND, and util-linux prlimit through REA_TSHARK_PRLIMIT_COMMAND (default /usr/bin/prlimit).`,
+          userMessage: `${reason} On Linux, supply TShark 4.x on PATH or through absolute REA_TSHARK_COMMAND, and util-linux prlimit through REA_TSHARK_PRLIMIT_COMMAND (default /usr/bin/prlimit). On Windows, supply tshark.exe on PATH or through absolute REA_TSHARK_COMMAND.`,
         },
       );
     if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")

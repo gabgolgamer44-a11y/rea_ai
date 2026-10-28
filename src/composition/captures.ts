@@ -2,9 +2,15 @@ import { PacketCaptureService } from "../application/captures/PacketCaptureServi
 import {
   TsharkCaptureProvider,
   tsharkHostSupported,
+  tsharkOfflineCaptureSupported,
+  tsharkLiveCaptureSupported,
 } from "../captures/TsharkCaptureProvider.js";
 
-export { tsharkHostSupported };
+export {
+  tsharkHostSupported,
+  tsharkOfflineCaptureSupported,
+  tsharkLiveCaptureSupported,
+};
 
 export const createPacketCaptureService = (
   environment: Readonly<NodeJS.ProcessEnv> = process.env,

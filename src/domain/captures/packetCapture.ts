@@ -142,12 +142,14 @@ export const packetCaptureSchema = z
       arguments: z.array(z.string()),
     }),
     configuration: z.literal("private-empty-personal-profile"),
-    resource_limiter: z.strictObject({
-      configured_path: z.string(),
-      path: z.string(),
-      sha256: z.string().regex(/^[a-f0-9]{64}$/),
-      arguments: z.array(z.string()),
-    }),
+    resource_limiter: z
+      .strictObject({
+        configured_path: z.string(),
+        path: z.string(),
+        sha256: z.string().regex(/^[a-f0-9]{64}$/),
+        arguments: z.array(z.string()),
+      })
+      .nullable(),
     limits: z.strictObject({
       input_bytes: z.number().int().positive(),
       output_bytes: z.number().int().positive(),

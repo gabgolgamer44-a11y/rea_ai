@@ -44,6 +44,19 @@ const inputFailure = (
     { path, reason: "invalid_value", message },
   ]);
 
+const resolveSubjectModuleName = (
+  subject: { readonly name: string; readonly local_path?: string } | null | undefined,
+): string | null => {
+  if (subject === null || subject === undefined) return null;
+  if (
+    subject.local_path !== undefined &&
+    (subject.local_path.endsWith("/") || subject.local_path.endsWith("\\"))
+  ) {
+    return null;
+  }
+  return subject.name;
+};
+
 const readNativeObservation = (
   raw: unknown,
 ): Result<
@@ -67,7 +80,7 @@ const readNativeObservation = (
         operation: evidence.operation,
         name: symbol.name,
         address: symbol.address,
-        module_name: evidence.subject?.name ?? null,
+        module_name: resolveSubjectModuleName(evidence.subject),
         module_path: evidence.subject?.local_path ?? null,
         source: "macho-export" as const,
       })),
@@ -88,7 +101,7 @@ const readNativeObservation = (
           operation: evidence.operation,
           name: payload.value.procedure.name,
           address: payload.value.procedure.address,
-          module_name: evidence.subject?.name ?? null,
+          module_name: resolveSubjectModuleName(evidence.subject),
           module_path: evidence.subject?.local_path ?? null,
           source: "function-dossier" as const,
         },

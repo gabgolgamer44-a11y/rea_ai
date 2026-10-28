@@ -146,14 +146,35 @@ export const locateWiresharkTool = (
 ): string | undefined => {
   if (selection.source === "environment" || isAbsolute(selection.command))
     return selection.command;
+  const isWindows = process.platform === "win32";
+  const extensions = isWindows
+    ? (environment.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+        .split(";")
+        .map((ext) => ext.trim())
+        .filter((ext) => ext.length > 0)
+    : [];
   for (const directory of (environment.PATH ?? "").split(delimiter)) {
     if (!isAbsolute(directory)) continue;
-    const candidate = appendCallerPath(directory, selection.command);
-    try {
-      accessSync(candidate, constants.X_OK);
-      if (statSync(candidate).isFile()) return candidate;
-    } catch {
-      // Absent or non-executable candidates leave later PATH entries eligible.
+    const candidates = [
+      appendCallerPath(directory, selection.command),
+      ...(isWindows
+        ? extensions.map((ext) =>
+            appendCallerPath(
+              directory,
+              selection.command.toLowerCase().endsWith(ext.toLowerCase())
+                ? selection.command
+                : `${selection.command}${ext}`,
+            ),
+          )
+        : []),
+    ];
+    for (const candidate of candidates) {
+      try {
+        accessSync(candidate, constants.X_OK);
+        if (statSync(candidate).isFile()) return candidate;
+      } catch {
+        // Absent or non-executable candidates leave later PATH entries eligible.
+      }
     }
   }
   return undefined;

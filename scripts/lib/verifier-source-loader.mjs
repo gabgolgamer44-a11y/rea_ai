@@ -1,7 +1,10 @@
 import { statSync } from "node:fs";
-import { registerHooks, stripTypeScriptTypes } from "node:module";
+import { createRequire, registerHooks, stripTypeScriptTypes } from "node:module";
 import { extname, isAbsolute, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+const require = createRequire(import.meta.url);
+let esbuild;
 
 const sourceRoots = [
   fileURLToPath(new URL("../../src/", import.meta.url)),
@@ -99,18 +102,20 @@ const loadSource = (url, context, nextLoad) => {
       sourceMap: true,
       sourceUrl: url,
     });
-  } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "ERR_INVALID_ARG_VALUE"
-    ) {
+  } catch {
+    try {
+      esbuild ??= require("esbuild");
+      stripped = esbuild.transformSync(source, {
+        loader: "ts",
+        format: format === "commonjs" ? "cjs" : "esm",
+        target: "node22",
+        sourcefile: path,
+        sourcemap: "inline",
+      }).code;
+    } catch {
       stripped = stripTypeScriptTypes(source, {
         mode: "strip",
       });
-    } else {
-      throw error;
     }
   }
   return {
