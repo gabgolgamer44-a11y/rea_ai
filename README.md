@@ -3,34 +3,36 @@
 **English** · [简体中文](docs/readme/README_zh.md) · [繁體中文](docs/readme/README_zh-TW.md) · [日本語](docs/readme/README_ja.md) · [한국어](docs/readme/README_ko.md) · [Türkçe](docs/readme/README_tr.md) · [Русский](docs/readme/README_ru.md) · [Tiếng Việt](docs/readme/README_vi.md) · [ไทย](docs/readme/README_th.md) · [Deutsch](docs/readme/README_de.md) · [Español](docs/readme/README_es.md) · [Français](docs/readme/README_fr.md) · [Українська](docs/readme/README_uk.md) · [Polski](docs/readme/README_pl.md) · [Português (Brasil)](docs/readme/README_pt-BR.md) · [العربية](docs/readme/README_ar.md) · [فارسی](docs/readme/README_fa.md) · [Bahasa Indonesia](docs/readme/README_id.md) · [Italiano](docs/readme/README_it.md)
 · [Ελληνικά](docs/readme/README_el.md) · [മലയാളം](docs/readme/README_ml.md) · [Roman Urdu](docs/readme/README_ur-Latn.md) · [Română](docs/readme/README_ro.md)
 
-# REA: Reverse Engineer Anything
+# rea_ai: Extended Providers for Reverse Engineer Anything
 
-### One MCP for reverse engineering across binaries, applications, and runtime behavior.
+### Unified MCP & CLI for Advanced Reverse Engineering with Extended Decompiler and Debugger Providers.
 
 **See a feature you like. Understand how it works, down to the binary level.**
 
-[![npm version](https://img.shields.io/npm/v/rea-agents?style=flat-square&color=cb3837)](https://www.npmjs.com/package/rea-agents)
-[![MCP tool catalog](https://img.shields.io/badge/MCP-tool_catalog-5c4ee5?style=flat-square)](docs/mcp-contracts.md#generated-catalog)
-[![Node.js requirements](https://img.shields.io/badge/Node.js-requirements-339933?style=flat-square&logo=nodedotjs&logoColor=white)](#what-you-can-analyze)
-[![skills.sh](https://skills.sh/b/morluto/rea?style=flat-square)](https://skills.sh/morluto/rea/reverse-engineer-anything)
 [![MIT license](https://img.shields.io/badge/license-MIT-f4c430?style=flat-square)](LICENSE)
-[![Discord](https://img.shields.io/discord/1556595354999332884?logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/GkcryMnJDM)
-
-<a href="https://trendshift.io/repositories/82054?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-82054" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/82054" alt="morluto%2Frea | Trendshift" width="250" height="55"/></a>
-
-**[Website](https://rea.tools/) · [Guides](https://rea.tools/guides/) · [Showcases](https://rea.tools/showcase/)**
-
-[Quick start](#quick-start) · [How REA works](#how-rea-works) · [What you can analyze](#what-you-can-analyze) · [Showcases](#showcases) · [Build RL environments](#build-rl-environments) · [FAQ](#faq) · [Documentation](#documentation)
-
-<code>npx rea-agents setup</code>
+[![Upstream Commit](https://img.shields.io/badge/upstream-a6295e4-blue?style=flat-square)](https://github.com/morluto/rea/commit/a6295e433b7e141740ee1aeccd1c077952e77808)
+[![Branch](https://img.shields.io/badge/branch-feature%2Frea--extended--providers-green?style=flat-square)](#)
+[![Original README](https://img.shields.io/badge/docs-UPSTREAM__README.md-informational?style=flat-square)](docs/UPSTREAM_README.md)
 
 </div>
 
+> [!NOTE]
+> **Sobre o rea_ai**:
+> Este repositório é uma extensão do projeto upstream [REA (Reverse Engineer Anything)](https://github.com/morluto/rea) criado por morluto e colaboradores, mantido sob licença MIT.
+>
+> - **Commit Upstream Importado:** `a6295e433b7e141740ee1aeccd1c077952e77808` (*fix(python): preserve code objects after STORE_SLICE*).
+> - **Branch de Desenvolvimento:** `feature/rea-extended-providers`.
+> - **Objetivos do Projeto:** Expandir a arquitetura original integrando novos provedores estendidos:
+>   - Runtime de depuração e automação do **Immunity Debugger**;
+>   - Ponte de depuração para **x64dbg**;
+>   - Integrações e capacidades avançadas de descompiladores licenciados.
+>   *(Tratados como hipóteses técnicas a serem rigorosamente validadas em ambiente real e documentadas com preservação de evidências).*
+> - **Submódulos e Recursos Upstream:** Mantidos integralmente em `third_party/` (`binwalk`, `ghidra-nativeaot`, `jadx-headless-mcp`, `unblob`, `wakaru`).
+> - **Documentação Original do Upstream:** Preservada integralmente em [`docs/UPSTREAM_README.md`](docs/UPSTREAM_README.md).
+
 > [!IMPORTANT]
-> Get REA from [morluto/rea](https://github.com/morluto/rea),
-> [rea.tools](https://rea.tools/), or the [rea-agents npm package](https://www.npmjs.com/package/rea-agents).
-> Follow the installation and release links from these official sources. A similar
-> repository name or copied README does not establish that a download is official.
+> Este projeto é baseado no código original do [morluto/rea](https://github.com/morluto/rea) sob a [Licença MIT](LICENSE).
+> O README e documentação originais completos do upstream estão preservados em [docs/UPSTREAM_README.md](docs/UPSTREAM_README.md).
 
 <div align="center">
 

@@ -92,14 +92,31 @@ const loadSource = (url, context, nextLoad) => {
   else if (loaded.source instanceof ArrayBuffer)
     source = Buffer.from(loaded.source).toString("utf8");
   else throw new TypeError(`Verifier module source was unavailable: ${url}`);
-  return {
-    ...loaded,
-    format,
-    source: stripTypeScriptTypes(source, {
+  let stripped;
+  try {
+    stripped = stripTypeScriptTypes(source, {
       mode: "transform",
       sourceMap: true,
       sourceUrl: url,
-    }),
+    });
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "ERR_INVALID_ARG_VALUE"
+    ) {
+      stripped = stripTypeScriptTypes(source, {
+        mode: "strip",
+      });
+    } else {
+      throw error;
+    }
+  }
+  return {
+    ...loaded,
+    format,
+    source: stripped,
   };
 };
 
